@@ -81,13 +81,10 @@ describe('ResourceDetailsActionsMenu', () => {
     await user.click(screen.getByRole('button', { name: 'Actions' }));
     await user.click(screen.getByRole('menuitem', { name: 'Edit annotations' }));
     await user.click(screen.getByRole('button', { name: 'Actions' }));
-    const editAction = screen.getByRole('menuitem', { name: 'Edit BrokerService' });
-    expect(editAction).toHaveAttribute(
+    expect(screen.getByRole('menuitem', { name: 'Edit BrokerService' })).toHaveAttribute(
       'href',
       '/k8s/ns/default/broker.arkmq.org~v1beta2~BrokerService/my-broker-service/yaml',
     );
-    await user.click(editAction);
-    await user.click(screen.getByRole('button', { name: 'Actions' }));
     await user.click(screen.getByRole('menuitem', { name: 'Delete BrokerService' }));
 
     expect(launchLabelsModal).toHaveBeenCalledTimes(1);
