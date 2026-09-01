@@ -13,6 +13,11 @@ import {
   useBrokerAppFormDispatch,
 } from '../../../reducers/brokerapp/reducer';
 
+/**
+ * Renders the Messaging Capabilities form section for Create/Edit BrokerApp.
+ * Contains the Produces To and Consumes From address-reference lists.
+ * State and mutations are owned by the BrokerApp reducer via context.
+ */
 export const CapabilitiesSection: React.FC = () => {
   const { t } = useTranslation('plugin__arkmq-org-broker-operator-openshift-ui');
   const state = useBrokerAppFormState();
@@ -37,15 +42,9 @@ export const CapabilitiesSection: React.FC = () => {
           </HelperText>
         </FormHelperText>
         <AddressListInput
-          inputId="brokerapp-produces"
-          categoryName={t('Produces To')}
-          addresses={state.producerOf}
-          onAdd={(addr) => {
-            dispatch({ type: 'ADD_ADDRESS', field: 'producerOf', payload: addr });
-          }}
-          onRemove={(addr) => {
-            dispatch({ type: 'REMOVE_ADDRESS', field: 'producerOf', payload: addr });
-          }}
+          field="producerOf"
+          addressRefs={state.producerOf}
+          dispatch={dispatch}
           placeholder={t('e.g., orders.created')}
         />
       </FormGroup>
@@ -59,15 +58,9 @@ export const CapabilitiesSection: React.FC = () => {
           </HelperText>
         </FormHelperText>
         <AddressListInput
-          inputId="brokerapp-consumes"
-          categoryName={t('Consumes From')}
-          addresses={state.consumerOf}
-          onAdd={(addr) => {
-            dispatch({ type: 'ADD_ADDRESS', field: 'consumerOf', payload: addr });
-          }}
-          onRemove={(addr) => {
-            dispatch({ type: 'REMOVE_ADDRESS', field: 'consumerOf', payload: addr });
-          }}
+          field="consumerOf"
+          addressRefs={state.consumerOf}
+          dispatch={dispatch}
           placeholder={t('e.g., payments.pending')}
         />
       </FormGroup>

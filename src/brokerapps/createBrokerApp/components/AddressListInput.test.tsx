@@ -1,90 +1,113 @@
 import { render, screen, fireEvent } from '@testing-library/react';
+import type { AddressRef } from '../../../k8s/types';
+import { brokerAppReducer, createInitialBrokerAppState } from '../../../reducers/brokerapp/reducer';
 import { AddressListInput } from './AddressListInput';
 
+const renderList = (refs: AddressRef[], field: 'producerOf' | 'consumerOf' = 'producerOf') => {
+  const dispatch = jest.fn();
+  render(
+    <AddressListInput
+      field={field}
+      addressRefs={refs}
+      dispatch={dispatch}
+      placeholder="e.g., test.address"
+    />,
+  );
+  return { dispatch };
+};
+
 describe('AddressListInput', () => {
-  const defaultProps = {
-    addresses: [],
-    onAdd: jest.fn(),
-    onRemove: jest.fn(),
-    placeholder: 'e.g., QUEUE.TEST',
-    inputId: 'test-input',
-    categoryName: 'Test Category',
-  };
-
-  beforeEach(() => {
-    jest.clearAllMocks();
+  it('renders a card for each address ref', () => {
+    renderList([{ address: 'QUEUE.A' }, { address: 'QUEUE.B' }]);
+    expect(screen.getByText('QUEUE.A')).toBeInTheDocument();
+    expect(screen.getByText('QUEUE.B')).toBeInTheDocument();
   });
 
-  it('shows a text input and confirms address on Enter after clicking the add control', () => {
-    const onAdd = jest.fn();
-    render(<AddressListInput {...defaultProps} onAdd={onAdd} />);
-
-    // Click the 'Add address' control to reveal the text input
-    fireEvent.click(screen.getByText('Add address'));
-    const input = screen.getByRole('textbox');
-    fireEvent.change(input, { target: { value: 'QUEUE.A' } });
+  it('dispatches ADD_ADDRESS when Enter is pressed in the text input', () => {
+    const { dispatch } = renderList([]);
+    const input = screen.getByTestId('add-address-input-producerOf');
+    fireEvent.change(input, { target: { value: 'QUEUE.NEW' } });
     fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
-
-    expect(onAdd).toHaveBeenCalledWith('QUEUE.A');
+    expect(dispatch).toHaveBeenCalledWith({
+      type: 'ADD_ADDRESS',
+      field: 'producerOf',
+      payload: 'QUEUE.NEW',
+    });
   });
 
-  it('calls onRemove with the correct address when the chip close button is clicked', () => {
-    const onRemove = jest.fn();
+  it('dispatches ADD_ADDRESS when the Add address button is clicked', () => {
+    const { dispatch } = renderList([]);
+    const input = screen.getByTestId('add-address-input-producerOf');
+    fireEvent.change(input, { target: { value: 'QUEUE.BTN' } });
+    fireEvent.click(screen.getByTestId('add-address-button-producerOf'));
+    expect(dispatch).toHaveBeenCalledWith({
+      type: 'ADD_ADDRESS',
+      field: 'producerOf',
+      payload: 'QUEUE.BTN',
+    });
+  });
+
+  it('does not dispatch when the input is blank', () => {
+    const { dispatch } = renderList([]);
+    fireEvent.click(screen.getByTestId('add-address-button-producerOf'));
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it('dispatches REMOVE_ADDRESS when the remove button on a card is clicked', () => {
+    const { dispatch } = renderList([{ address: 'QUEUE.A' }]);
+    fireEvent.click(screen.getByTestId('remove-address-button'));
+    expect(dispatch).toHaveBeenCalledWith({
+      type: 'REMOVE_ADDRESS',
+      field: 'producerOf',
+      payload: 'QUEUE.A',
+    });
+  });
+
+  it('dispatches SET_ADDRESS_PUBSUB when the PubSub checkbox is toggled', () => {
+    const { dispatch } = renderList([{ address: 'QUEUE.A' }]);
+    fireEvent.click(screen.getByTestId('pubsub-checkbox')); // checkbox always visible in header
+    expect(dispatch).toHaveBeenCalledWith({
+      type: 'SET_ADDRESS_PUBSUB',
+      field: 'producerOf',
+      address: 'QUEUE.A',
+      pubSub: true,
+    });
+  });
+
+  it('renders cards for the consumerOf field with the correct data-test id', () => {
+    renderList([{ address: 'QUEUE.IN' }], 'consumerOf');
+    expect(screen.getByTestId('address-list-input-consumerOf')).toBeInTheDocument();
+    expect(screen.getByText('QUEUE.IN')).toBeInTheDocument();
+  });
+
+  it('input is cleared after adding an address', () => {
+    renderList([]);
+    const input = screen.getByTestId('add-address-input-producerOf');
+    fireEvent.change(input, { target: { value: 'QUEUE.CLEAR' } });
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
+    expect(input).toHaveValue('');
+  });
+
+  it('ADD_ADDRESS round-trip — address appears in the list via real reducer', () => {
+    let state = createInitialBrokerAppState('default');
+    const dispatch = (action: Parameters<typeof brokerAppReducer>[1]) => {
+      state = brokerAppReducer(state, action);
+    };
+
     render(
       <AddressListInput
-        {...defaultProps}
-        onRemove={onRemove}
-        addresses={['QUEUE.KEEP', 'QUEUE.REMOVE']}
+        field="producerOf"
+        addressRefs={state.producerOf}
+        dispatch={dispatch as never}
+        placeholder="e.g., test"
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Remove QUEUE.REMOVE' }));
-    expect(onRemove).toHaveBeenCalledWith('QUEUE.REMOVE');
-    expect(onRemove).not.toHaveBeenCalledWith('QUEUE.KEEP');
-  });
-
-  it('renders all provided addresses as chips', () => {
-    render(<AddressListInput {...defaultProps} addresses={['QUEUE.PAYMENTS', 'TOPIC.EVENTS']} />);
-
-    expect(screen.getByText('QUEUE.PAYMENTS')).toBeInTheDocument();
-    expect(screen.getByText('TOPIC.EVENTS')).toBeInTheDocument();
-  });
-
-  it('confirms address on blur after typing', () => {
-    const onAdd = jest.fn();
-    render(<AddressListInput {...defaultProps} onAdd={onAdd} />);
-
-    fireEvent.click(screen.getByText('Add address'));
-    const input = screen.getByRole('textbox');
-    fireEvent.change(input, { target: { value: 'QUEUE.BLUR' } });
-    fireEvent.blur(input);
-
-    expect(onAdd).toHaveBeenCalledWith('QUEUE.BLUR');
-  });
-
-  it('cancels adding without calling onAdd when Escape is pressed', () => {
-    const onAdd = jest.fn();
-    render(<AddressListInput {...defaultProps} onAdd={onAdd} />);
-
-    fireEvent.click(screen.getByText('Add address'));
-    const input = screen.getByRole('textbox');
-    fireEvent.change(input, { target: { value: 'QUEUE.CANCELLED' } });
-    fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
-
-    expect(onAdd).not.toHaveBeenCalled();
-    // Input is gone; the 'Add address' control is shown again
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
-    expect(screen.getByText('Add address')).toBeInTheDocument();
-  });
-
-  it('does not call onAdd when Enter is pressed with blank input', () => {
-    const onAdd = jest.fn();
-    render(<AddressListInput {...defaultProps} onAdd={onAdd} />);
-
-    fireEvent.click(screen.getByText('Add address'));
-    const input = screen.getByRole('textbox');
+    expect(state.producerOf).toHaveLength(0);
+    const input = screen.getByTestId('add-address-input-producerOf');
+    fireEvent.change(input, { target: { value: 'QUEUE.ROUNDTRIP' } });
     fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
-
-    expect(onAdd).not.toHaveBeenCalled();
+    expect(state.producerOf).toHaveLength(1);
+    expect(state.producerOf[0].address).toBe('QUEUE.ROUNDTRIP');
   });
 });

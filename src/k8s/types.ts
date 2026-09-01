@@ -5,13 +5,17 @@ export enum EditorType {
   YAML = 'yaml',
 }
 
-export interface MatchAddress {
+export interface AddressRef {
   address: string;
+  pubSub?: boolean;
+  subscriptions?: string[];
+  appNamespace?: string;
+  appName?: string;
 }
 
 export interface BrokerAppCapability {
-  producerOf?: MatchAddress[];
-  consumerOf?: MatchAddress[];
+  producerOf?: AddressRef[];
+  consumerOf?: AddressRef[];
 }
 
 export interface BrokerAppSpec {

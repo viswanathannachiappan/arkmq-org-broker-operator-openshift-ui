@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useReducer } from 'react';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import {
   brokerAppReducer,
   createInitialBrokerAppState,
@@ -25,9 +25,7 @@ const makeStateWithAddresses = (): BrokerAppFormState => {
   return state;
 };
 
-const CapabilitiesSectionWrapper: React.FC<{ initialState?: BrokerAppFormState }> = ({
-  initialState,
-}) => {
+const Wrapper: React.FC<{ initialState?: BrokerAppFormState }> = ({ initialState }) => {
   const [state, dispatch] = useReducer(
     brokerAppReducer,
     initialState ?? createInitialBrokerAppState('default'),
@@ -43,38 +41,61 @@ const CapabilitiesSectionWrapper: React.FC<{ initialState?: BrokerAppFormState }
 
 describe('CapabilitiesSection', () => {
   it('renders existing producerOf and consumerOf addresses from state', () => {
-    render(<CapabilitiesSectionWrapper initialState={makeStateWithAddresses()} />);
-
+    render(<Wrapper initialState={makeStateWithAddresses()} />);
     expect(screen.getByText('QUEUE.OUT')).toBeInTheDocument();
     expect(screen.getByText('QUEUE.IN')).toBeInTheDocument();
   });
 
-  it('adding an address to producerOf updates the label group', () => {
-    render(<CapabilitiesSectionWrapper />);
-
-    const producerList = screen.getByRole('list', { name: 'Produces To' });
-    fireEvent.click(within(producerList).getByText('Add address'));
-
-    const input = within(producerList).getByRole('textbox');
+  it('adding an address to producerOf shows a new card', () => {
+    render(<Wrapper />);
+    const input = screen.getByTestId('add-address-input-producerOf');
     fireEvent.change(input, { target: { value: 'QUEUE.ORDERS' } });
     fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
-
-    expect(within(producerList).getByText('QUEUE.ORDERS')).toBeInTheDocument();
+    expect(screen.getByText('QUEUE.ORDERS')).toBeInTheDocument();
   });
 
-  it('adding an address to consumerOf does not affect producerOf', () => {
-    render(<CapabilitiesSectionWrapper />);
-
-    const consumerList = screen.getByRole('list', { name: 'Consumes From' });
-    fireEvent.click(within(consumerList).getByText('Add address'));
-
-    const input = within(consumerList).getByRole('textbox');
+  it('adding an address to consumerOf does not appear in producerOf', () => {
+    render(<Wrapper />);
+    const input = screen.getByTestId('add-address-input-consumerOf');
     fireEvent.change(input, { target: { value: 'QUEUE.PAYMENTS' } });
     fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
 
-    expect(within(consumerList).getByText('QUEUE.PAYMENTS')).toBeInTheDocument();
+    expect(screen.getByText('QUEUE.PAYMENTS')).toBeInTheDocument();
+    // Should not appear inside the producerOf list
+    const producerList = screen.getByTestId('address-list-input-producerOf');
+    expect(producerList).not.toHaveTextContent('QUEUE.PAYMENTS');
+  });
 
-    const producerList = screen.getByRole('list', { name: 'Produces To' });
-    expect(within(producerList).queryByText('QUEUE.PAYMENTS')).not.toBeInTheDocument();
+  it('checking PubSub on a producer address updates the checkbox', () => {
+    render(<Wrapper initialState={makeStateWithAddresses()} />);
+    const checkbox = screen.getAllByTestId('pubsub-checkbox')[0];
+    expect(checkbox).not.toBeChecked();
+    fireEvent.click(checkbox);
+    expect(checkbox).toBeChecked();
+  });
+
+  it('renders existing rich address data when editing an existing BrokerApp', () => {
+    let state = createInitialBrokerAppState('default');
+    state = brokerAppReducer(state, {
+      type: 'SET_MODEL',
+      payload: {
+        apiVersion: 'broker.arkmq.org/v1beta2',
+        kind: 'BrokerApp',
+        metadata: { name: 'existing', namespace: 'default' },
+        spec: {
+          capabilities: [
+            {
+              producerOf: [{ address: 'orders.events', pubSub: true, subscriptions: ['audit'] }],
+            },
+          ],
+        },
+      },
+    });
+
+    render(<Wrapper initialState={state} />);
+    expect(screen.getByText('orders.events')).toBeInTheDocument();
+    // subscriptions set → options panel auto-expands; audit chip is visible
+    expect(screen.getByTestId('pubsub-options-panel')).toBeInTheDocument();
+    expect(screen.getByText('audit')).toBeInTheDocument();
   });
 });
