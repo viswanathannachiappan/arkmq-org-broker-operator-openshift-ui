@@ -16,9 +16,15 @@ export interface BrokerAppCapability {
   consumerOf?: MatchAddress[];
 }
 
+export interface ResourceRequirements {
+  requests?: Record<string, string>;
+  limits?: Record<string, string>;
+}
+
 export interface BrokerAppSpec {
   selector?: { matchLabels?: Record<string, string> };
   capabilities?: BrokerAppCapability[];
+  resources?: ResourceRequirements;
 }
 
 export interface BrokerAppServiceBinding {

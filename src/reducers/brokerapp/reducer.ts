@@ -1,6 +1,11 @@
 import type { Dispatch } from 'react';
 import { createContext, useContext } from 'react';
-import type { BrokerAppCapability, BrokerAppCR, BrokerAppSpec } from '../../k8s/types';
+import type {
+  BrokerAppCapability,
+  BrokerAppCR,
+  BrokerAppSpec,
+  ResourceRequirements,
+} from '../../k8s/types';
 
 export interface MatchLabel {
   id: string;
@@ -15,6 +20,10 @@ export interface BrokerAppFormState {
   matchLabels: MatchLabel[];
   producerOf: string[];
   consumerOf: string[];
+  cpuRequest: string;
+  cpuLimit: string;
+  memoryRequest: string;
+  memoryLimit: string;
 }
 
 export type BrokerAppFormAction =
@@ -24,6 +33,10 @@ export type BrokerAppFormAction =
   | { type: 'ADD_MATCH_LABEL' }
   | { type: 'REMOVE_MATCH_LABEL'; payload: string }
   | { type: 'UPDATE_MATCH_LABEL'; payload: { id: string; key: string; value: string } }
+  | { type: 'SET_CPU_REQUEST'; payload: string }
+  | { type: 'SET_CPU_LIMIT'; payload: string }
+  | { type: 'SET_MEMORY_REQUEST'; payload: string }
+  | { type: 'SET_MEMORY_LIMIT'; payload: string }
   | { type: 'SET_MODEL'; payload: BrokerAppCR; preserveLabels?: boolean };
 
 // --- helpers ---
@@ -86,16 +99,43 @@ const addressesFromCapabilities = (
   return arr ? arr.map((a) => a.address) : [];
 };
 
+const buildResources = (
+  cpuRequest: string,
+  cpuLimit: string,
+  memoryRequest: string,
+  memoryLimit: string,
+): ResourceRequirements | undefined => {
+  const requests: Record<string, string> = {};
+  const limits: Record<string, string> = {};
+  if (cpuRequest) requests.cpu = cpuRequest;
+  if (memoryRequest) requests.memory = memoryRequest;
+  if (cpuLimit) limits.cpu = cpuLimit;
+  if (memoryLimit) limits.memory = memoryLimit;
+  const hasRequests = Object.keys(requests).length > 0;
+  const hasLimits = Object.keys(limits).length > 0;
+  if (!hasRequests && !hasLimits) return undefined;
+  const resources: ResourceRequirements = {};
+  if (hasRequests) resources.requests = requests;
+  if (hasLimits) resources.limits = limits;
+  return resources;
+};
+
 const buildSpec = (
   matchLabels: MatchLabel[],
   producerOf: string[],
   consumerOf: string[],
+  cpuRequest = '',
+  cpuLimit = '',
+  memoryRequest = '',
+  memoryLimit = '',
 ): BrokerAppSpec => {
   const resolvedMatchLabels = buildMatchLabels(matchLabels);
   const capabilities = buildCapabilities(producerOf, consumerOf);
+  const resources = buildResources(cpuRequest, cpuLimit, memoryRequest, memoryLimit);
   const spec: BrokerAppSpec = {};
   if (resolvedMatchLabels) spec.selector = { matchLabels: resolvedMatchLabels };
   if (capabilities) spec.capabilities = capabilities;
+  if (resources) spec.resources = resources;
   return spec;
 };
 
@@ -128,7 +168,15 @@ export const brokerAppReducer = (
         ...newArrays,
         cr: {
           ...state.cr,
-          spec: buildSpec(state.matchLabels, newArrays.producerOf, newArrays.consumerOf),
+          spec: buildSpec(
+            state.matchLabels,
+            newArrays.producerOf,
+            newArrays.consumerOf,
+            state.cpuRequest,
+            state.cpuLimit,
+            state.memoryRequest,
+            state.memoryLimit,
+          ),
         },
       };
     }
@@ -144,7 +192,15 @@ export const brokerAppReducer = (
         ...newArrays,
         cr: {
           ...state.cr,
-          spec: buildSpec(state.matchLabels, newArrays.producerOf, newArrays.consumerOf),
+          spec: buildSpec(
+            state.matchLabels,
+            newArrays.producerOf,
+            newArrays.consumerOf,
+            state.cpuRequest,
+            state.cpuLimit,
+            state.memoryRequest,
+            state.memoryLimit,
+          ),
         },
       };
     }
@@ -162,7 +218,15 @@ export const brokerAppReducer = (
         matchLabels,
         cr: {
           ...state.cr,
-          spec: buildSpec(matchLabels, state.producerOf, state.consumerOf),
+          spec: buildSpec(
+            matchLabels,
+            state.producerOf,
+            state.consumerOf,
+            state.cpuRequest,
+            state.cpuLimit,
+            state.memoryRequest,
+            state.memoryLimit,
+          ),
         },
       };
     }
@@ -178,13 +242,101 @@ export const brokerAppReducer = (
         matchLabels,
         cr: {
           ...state.cr,
-          spec: buildSpec(matchLabels, state.producerOf, state.consumerOf),
+          spec: buildSpec(
+            matchLabels,
+            state.producerOf,
+            state.consumerOf,
+            state.cpuRequest,
+            state.cpuLimit,
+            state.memoryRequest,
+            state.memoryLimit,
+          ),
+        },
+      };
+    }
+
+    case 'SET_CPU_REQUEST': {
+      return {
+        ...state,
+        cpuRequest: action.payload,
+        cr: {
+          ...state.cr,
+          spec: buildSpec(
+            state.matchLabels,
+            state.producerOf,
+            state.consumerOf,
+            action.payload,
+            state.cpuLimit,
+            state.memoryRequest,
+            state.memoryLimit,
+          ),
+        },
+      };
+    }
+
+    case 'SET_CPU_LIMIT': {
+      return {
+        ...state,
+        cpuLimit: action.payload,
+        cr: {
+          ...state.cr,
+          spec: buildSpec(
+            state.matchLabels,
+            state.producerOf,
+            state.consumerOf,
+            state.cpuRequest,
+            action.payload,
+            state.memoryRequest,
+            state.memoryLimit,
+          ),
+        },
+      };
+    }
+
+    case 'SET_MEMORY_REQUEST': {
+      return {
+        ...state,
+        memoryRequest: action.payload,
+        cr: {
+          ...state.cr,
+          spec: buildSpec(
+            state.matchLabels,
+            state.producerOf,
+            state.consumerOf,
+            state.cpuRequest,
+            state.cpuLimit,
+            action.payload,
+            state.memoryLimit,
+          ),
+        },
+      };
+    }
+
+    case 'SET_MEMORY_LIMIT': {
+      return {
+        ...state,
+        memoryLimit: action.payload,
+        cr: {
+          ...state.cr,
+          spec: buildSpec(
+            state.matchLabels,
+            state.producerOf,
+            state.consumerOf,
+            state.cpuRequest,
+            state.cpuLimit,
+            state.memoryRequest,
+            action.payload,
+          ),
         },
       };
     }
 
     case 'SET_MODEL': {
       const newCr = action.payload;
+      const cpuRequest = newCr.spec.resources?.requests?.cpu ?? '';
+      const cpuLimit = newCr.spec.resources?.limits?.cpu ?? '';
+      const memoryRequest = newCr.spec.resources?.requests?.memory ?? '';
+      const memoryLimit = newCr.spec.resources?.limits?.memory ?? '';
       if (action.preserveLabels) {
         const mergedMatchLabels = mergeMatchLabelsWithYaml(
           state.matchLabels,
@@ -198,11 +350,19 @@ export const brokerAppReducer = (
               mergedMatchLabels,
               addressesFromCapabilities(newCr.spec.capabilities, 'producerOf'),
               addressesFromCapabilities(newCr.spec.capabilities, 'consumerOf'),
+              cpuRequest,
+              cpuLimit,
+              memoryRequest,
+              memoryLimit,
             ),
           },
           matchLabels: mergedMatchLabels,
           producerOf: addressesFromCapabilities(newCr.spec.capabilities, 'producerOf'),
           consumerOf: addressesFromCapabilities(newCr.spec.capabilities, 'consumerOf'),
+          cpuRequest,
+          cpuLimit,
+          memoryRequest,
+          memoryLimit,
         };
       }
       return {
@@ -211,6 +371,10 @@ export const brokerAppReducer = (
         matchLabels: matchLabelsFromRecord(newCr.spec.selector?.matchLabels),
         producerOf: addressesFromCapabilities(newCr.spec.capabilities, 'producerOf'),
         consumerOf: addressesFromCapabilities(newCr.spec.capabilities, 'consumerOf'),
+        cpuRequest,
+        cpuLimit,
+        memoryRequest,
+        memoryLimit,
       };
     }
 
@@ -229,6 +393,10 @@ export const createInitialBrokerAppState = (namespace: string): BrokerAppFormSta
   matchLabels: [{ id: String(Date.now()), key: '', value: '' }],
   producerOf: [],
   consumerOf: [],
+  cpuRequest: '',
+  cpuLimit: '',
+  memoryRequest: '',
+  memoryLimit: '',
 });
 
 export const BrokerAppFormStateContext = createContext<BrokerAppFormState | undefined>(undefined);

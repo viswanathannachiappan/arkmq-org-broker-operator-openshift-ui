@@ -121,6 +121,18 @@ export const validateYamlDuplicateBrokerAppMatchLabels = (yamlContent: string): 
   );
 
 /**
+ * Accepted formats: 500m, 0.5, 1, 2Gi, 512Mi, 1k, 4G, etc.
+ */
+export const validateResourceQuantity = (value: string): string | null => {
+  if (!value) return null;
+  const k8sQuantityRegex = /^(\d+(\.\d+)?|\.\d+)(m|k|M|G|T|P|E|Ki|Mi|Gi|Ti|Pi|Ei)?$/;
+  if (!k8sQuantityRegex.test(value)) {
+    return 'Invalid quantity. Use standard format (e.g., 500m, 2Gi)';
+  }
+  return null;
+};
+
+/**
  * Validate memory value (must be a positive number)
  */
 export const validateMemoryValue = (value: string): string | null => {

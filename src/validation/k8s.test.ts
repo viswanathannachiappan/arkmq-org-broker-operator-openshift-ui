@@ -2,6 +2,7 @@ import {
   validateDNS1123,
   validateLabelEntries,
   validateMemoryValue,
+  validateResourceQuantity,
   validateYamlDuplicateBrokerServiceLabels,
   validateYamlDuplicateBrokerAppMatchLabels,
 } from './k8s';
@@ -183,6 +184,62 @@ spec:
 
     expect(validateYamlDuplicateBrokerAppMatchLabels(yaml)).toBe(
       'Duplicate label key "env" in spec.selector.matchLabels',
+    );
+  });
+});
+
+describe('validateResourceQuantity', () => {
+  it('returns null for an empty string (field is optional)', () => {
+    expect(validateResourceQuantity('')).toBeNull();
+  });
+
+  it('returns null for a plain integer', () => {
+    expect(validateResourceQuantity('1')).toBeNull();
+  });
+
+  it('returns null for milli-CPU (500m)', () => {
+    expect(validateResourceQuantity('500m')).toBeNull();
+  });
+
+  it('returns null for a decimal value (0.5)', () => {
+    expect(validateResourceQuantity('0.5')).toBeNull();
+  });
+
+  it('returns null for binary memory suffix (2Gi)', () => {
+    expect(validateResourceQuantity('2Gi')).toBeNull();
+  });
+
+  it('returns null for binary memory suffix (512Mi)', () => {
+    expect(validateResourceQuantity('512Mi')).toBeNull();
+  });
+
+  it('returns null for decimal SI suffix (1k)', () => {
+    expect(validateResourceQuantity('1k')).toBeNull();
+  });
+
+  it('returns null for large decimal SI suffix (4G)', () => {
+    expect(validateResourceQuantity('4G')).toBeNull();
+  });
+
+  it('returns an error for a plain string with no numeric part', () => {
+    expect(validateResourceQuantity('abc')).not.toBeNull();
+  });
+
+  it('returns an error for a value with an invalid suffix', () => {
+    expect(validateResourceQuantity('500x')).not.toBeNull();
+  });
+
+  it('returns an error for a negative value', () => {
+    expect(validateResourceQuantity('-500m')).not.toBeNull();
+  });
+
+  it('returns an error for a value that is just a suffix with no number', () => {
+    expect(validateResourceQuantity('Gi')).not.toBeNull();
+  });
+
+  it('returns an error message containing the example formats', () => {
+    expect(validateResourceQuantity('bad!')).toBe(
+      'Invalid quantity. Use standard format (e.g., 500m, 2Gi)',
     );
   });
 });
